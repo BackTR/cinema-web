@@ -1,3 +1,4 @@
+// src/app/admin/schedules/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -30,18 +31,29 @@ export default function AdminSchedulesPage() {
   });
 
   const { data: studiosRaw } = useQuery({
-    queryKey: ['admin-studios', form.movieId ? (cinemasRaw as Array<{ id: string }>)?.[0]?.id : ''],
-    queryFn: () => {
+    queryKey: ['admin-all-studios', cinemasRaw],
+    queryFn: async () => {
       const cinemas = Array.isArray(cinemasRaw) ? cinemasRaw : [];
       if (cinemas.length === 0) return [];
-      return adminApi.getStudios((cinemas[0] as { id: string }).id);
+
+      const allStudios = await Promise.all(
+        (cinemas as Array<{ id: string }>).map((c) =>
+          adminApi.getStudios(c.id)
+        )
+      );
+      return allStudios.flat();
     },
-    enabled: !!(cinemasRaw && (Array.isArray(cinemasRaw) ? cinemasRaw.length > 0 : false)),
+    enabled: !!(cinemasRaw && (Array.isArray(cinemasRaw) ? (cinemasRaw as unknown[]).length > 0 : false)),
   });
 
   const { data: schedulesRaw, isLoading } = useQuery({
     queryKey: ['admin-schedules'],
-    queryFn: () => moviesApi.getSchedules('', ''),
+    queryFn: async () => {
+      const { data } = await import('@/lib/api').then((m) =>
+        m.api.get('/schedules', { params: { limit: 50 } })
+      );
+      return data.data;
+    },
   });
 
   const movies: Movie[] = Array.isArray(moviesRaw)
@@ -62,13 +74,27 @@ export default function AdminSchedulesPage() {
       setShowForm(false);
       setForm({ movieId: '', studioId: '', showTime: '', basePrice: 50000 });
     },
-    onError: () => toast.error('Gagal menambahkan jadwal'),
+    onError: (error: unknown) => {
+      const msg = (error as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      toast.error(msg ?? 'Gagal menambahkan jadwal');
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!form.movieId) { toast.error('Pilih film'); return; }
+    if (!form.studioId) { toast.error('Pilih studio'); return; }
+    if (!form.showTime) { toast.error('Pilih waktu tayang'); return; }
+
+    // Konversi datetime-local ke ISO string
+    const showTimeISO = new Date(form.showTime).toISOString();
+
     createMutation.mutate({
-      ...form,
+      movieId: form.movieId,
+      studioId: form.studioId,
+      showTime: showTimeISO,
       basePrice: Number(form.basePrice),
     });
   };
@@ -96,7 +122,9 @@ export default function AdminSchedulesPage() {
                 <X className="w-5 h-5 text-gray-400 hover:text-white" />
               </button>
             </div>
+
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Film */}
               <div>
                 <label className="label">Film</label>
                 <select
@@ -111,6 +139,8 @@ export default function AdminSchedulesPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Studio */}
               <div>
                 <label className="label">Studio</label>
                 <select
@@ -120,23 +150,44 @@ export default function AdminSchedulesPage() {
                   required
                 >
                   <option value="">Pilih Studio</option>
-                  {(studios as Array<{ id: string; name: string; cinema: { name: string } }>).map((s) => (
+                  {(studios as Array<{
+                    id: string;
+                    name: string;
+                    cinema: { name: string };
+                  }>).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.cinema?.name} — {s.name}
                     </option>
                   ))}
                 </select>
               </div>
+
+              {/* Waktu Tayang */}
               <div>
                 <label className="label">Waktu Tayang</label>
                 <input
                   type="datetime-local"
                   className="input"
                   value={form.showTime}
-                  onChange={(e) => setForm({ ...form, showTime: new Date(e.target.value).toISOString() })}
+                  onChange={(e) => setForm({ ...form, showTime: e.target.value })}
+                  min={new Date().toISOString().slice(0, 16)}
                   required
                 />
+                {form.showTime && (
+                  <p className="text-gray-500 text-xs mt-1">
+                    {new Date(form.showTime).toLocaleString('id-ID', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                )}
               </div>
+
+              {/* Harga */}
               <div>
                 <label className="label">Harga Dasar (Rp)</label>
                 <input
@@ -144,16 +195,19 @@ export default function AdminSchedulesPage() {
                   className="input"
                   value={form.basePrice}
                   onChange={(e) => setForm({ ...form, basePrice: Number(e.target.value) })}
+                  min={1000}
+                  step={1000}
                   required
                 />
               </div>
-              <div className="flex gap-3">
+
+              <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
                   className="btn-primary flex-1"
                 >
-                  {createMutation.isPending ? 'Menyimpan...' : 'Simpan'}
+                  {createMutation.isPending ? 'Menyimpan...' : 'Simpan Jadwal'}
                 </button>
                 <button
                   type="button"
@@ -187,8 +241,17 @@ export default function AdminSchedulesPage() {
                   Memuat...
                 </td>
               </tr>
+            ) : schedules.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                  Belum ada jadwal
+                </td>
+              </tr>
             ) : schedules.map((schedule) => (
-              <tr key={schedule.id} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50">
+              <tr
+                key={schedule.id}
+                className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50"
+              >
                 <td className="px-6 py-4 text-white text-sm">
                   {schedule.movie?.title}
                 </td>
