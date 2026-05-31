@@ -55,45 +55,47 @@ export default function BookingDetailPage() {
     refetchInterval: 5000, // polling tiap 5 detik untuk update status
   });
 
-  const handlePayment = async () => {
-    if (!booking) return;
-    setIsPaying(true);
-    try {
-      const payment = await bookingsApi.initiatePayment(booking.bookingCode);
+// src/app/bookings/[code]/page.tsx
+const handlePayment = async () => {
+  if (!booking) return;
+  setIsPaying(true);
+  try {
+    const payment = await bookingsApi.initiatePayment(booking.bookingCode);
 
-      // Load Midtrans Snap
-      const script = document.createElement('script');
-      script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
-      script.setAttribute(
-        'data-client-key',
-        process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? '',
-      );
-      script.onload = () => {
-        // @ts-expect-error — Midtrans global
-        window.snap.pay(payment.token, {
-          onSuccess: () => {
-            toast.success('Pembayaran berhasil! 🎉');
-            refetch();
-          },
-          onPending: () => {
-            toast('Menunggu konfirmasi pembayaran...', { icon: '⏳' });
-            refetch();
-          },
-          onError: () => {
-            toast.error('Pembayaran gagal. Silakan coba lagi.');
-          },
-          onClose: () => {
-            toast('Pembayaran dibatalkan.', { icon: '❌' });
-          },
-        });
-      };
-      document.head.appendChild(script);
-    } catch {
-      toast.error('Gagal memulai pembayaran');
-    } finally {
-      setIsPaying(false);
+    // ← Fix poin 15: cek script sudah ada sebelum tambah
+    const existingScript = document.getElementById('midtrans-snap');
+    if (existingScript) {
+      // Script sudah ada, langsung panggil snap
+      // @ts-expect-error — Midtrans global
+      window.snap.pay(payment.token, {
+        onSuccess: () => { toast.success('Pembayaran berhasil! 🎉'); refetch(); },
+        onPending: () => { toast('Menunggu konfirmasi...', { icon: '⏳' }); refetch(); },
+        onError: () => toast.error('Pembayaran gagal.'),
+        onClose: () => toast('Pembayaran dibatalkan.', { icon: '❌' }),
+      });
+      return;
     }
-  };
+
+    const script = document.createElement('script');
+    script.id = 'midtrans-snap'; // ← tambah id
+    script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
+    script.setAttribute('data-client-key', process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? '');
+    script.onload = () => {
+      // @ts-expect-error — Midtrans global
+      window.snap.pay(payment.token, {
+        onSuccess: () => { toast.success('Pembayaran berhasil! 🎉'); refetch(); },
+        onPending: () => { toast('Menunggu konfirmasi...', { icon: '⏳' }); refetch(); },
+        onError: () => toast.error('Pembayaran gagal.'),
+        onClose: () => toast('Pembayaran dibatalkan.', { icon: '❌' }),
+      });
+    };
+    document.head.appendChild(script);
+  } catch {
+    toast.error('Gagal memulai pembayaran');
+  } finally {
+    setIsPaying(false);
+  }
+};
 
   const handleCancel = async () => {
     if (!booking) return;

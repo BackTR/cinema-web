@@ -10,7 +10,7 @@ export const moviesApi = {
   limit?: number;
 }) => {
   const cleanParams = Object.fromEntries(
-    Object.entries(params ?? {}).filter(
+    Object.entries({isActive: true ,...params ?? {}}).filter(
       ([, v]) => v !== '' && v !== undefined && v !== null,
     ),
   );
