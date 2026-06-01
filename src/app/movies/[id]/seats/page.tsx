@@ -84,7 +84,35 @@ export default function SeatPickerPage() {
     }
   };
 
-  const totalPrice = selectedSeats.length * Number(schedule?.basePrice ?? 0);
+  // Tambah query pricing rules
+    const { data: pricingData } = useQuery({
+      queryKey: ['pricing', scheduleId],
+      queryFn: () => moviesApi.getPricingRules(scheduleId),
+      enabled: !!scheduleId,
+    });
+
+// Helper hitung harga per kursi
+    const getPriceForSeat = (seatType: 'REGULAR' | 'VIP'): number => {
+      const basePrice = Number(schedule?.basePrice ?? 0);
+      if (!pricingData) return basePrice;
+
+      // pricingData sudah object { basePrice, pricingRules }
+      const rules = pricingData.pricingRules ?? [];
+
+      const specificRule = rules.find((r) => r.seatType === seatType);
+      const fallbackRule = rules.find((r) => r.seatType === null);
+
+      return Number(
+        specificRule?.price ?? fallbackRule?.price ?? pricingData.basePrice ?? basePrice,
+      );
+    };
+
+// Hitung total yang akurat
+  const totalPrice = selectedSeats.reduce((sum, seat) => {
+    return sum + getPriceForSeat(seat.type as 'REGULAR' | 'VIP');
+  }, 0);
+
+  //const totalPrice = selectedSeats.length * Number(schedule?.basePrice ?? 0);
 
   const getSeatColor = (seat: SeatInfo, isSelected: boolean) => {
     if (isSelected) return 'bg-red-600 border-red-500 text-white';
@@ -138,7 +166,7 @@ export default function SeatPickerPage() {
         <div className="inline-block bg-gray-700 text-gray-400 text-xs px-16 py-1 rounded-sm mb-1">
           LAYAR
         </div>
-        <div className="h-1 bg-gradient-to-b from-gray-600 to-transparent rounded mx-auto w-3/4" />
+        <div className="h-1 bg-linear-to-b from-gray-600 to-transparent rounded mx-auto w-3/4" />
       </div>
 
       {/* Seat Map */}
@@ -190,6 +218,14 @@ export default function SeatPickerPage() {
                   {formatCurrency(totalPrice)}
                 </span>
               </p>
+            </div>
+              <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+              {selectedSeats.map((seat) => (
+                <div key={seat.id} className="flex justify-between">
+                  <span>{seat.rowLabel}{seat.seatNumber} ({seat.type})</span>
+                  <span>{formatCurrency(getPriceForSeat(seat.type as 'REGULAR' | 'VIP'))}</span>
+                </div>
+              ))}
             </div>
             <button
               onClick={handleBooking}

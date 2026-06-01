@@ -48,4 +48,16 @@ export const moviesApi = {
     );
     return data.data as unknown as SeatMap;
   },
+
+getPricingRules: async (scheduleId: string) => {
+  const { data } = await api.get(`/schedules/${scheduleId}/pricing`);
+  // Return object { basePrice, pricingRules }
+  return data.data as {
+    basePrice: string;
+    pricingRules: Array<{
+      seatType: 'REGULAR' | 'VIP' | null;
+      price: string;
+    }>;
+  };
+},
 };
