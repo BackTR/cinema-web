@@ -12,7 +12,7 @@ export function MovieCard({ movie }: MovieCardProps) {
     <Link href={`/movies/${movie.id}`}>
       <div className="card hover:border-gray-600 transition-all hover:-translate-y-1 cursor-pointer group">
         {/* Poster */}
-        <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl bg-gray-800">
+        <div className="relative aspect-2/3 overflow-hidden rounded-t-xl bg-gray-800">
           {movie.posterUrl ? (
             <Image
               src={movie.posterUrl}
