@@ -15,6 +15,8 @@ interface AuthState {
   verifyPhoneOtp: (phone: string, otp: string) => Promise<void>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendEmailVerification: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   checkAuth: () => Promise<void>;
@@ -99,6 +101,14 @@ export const useAuthStore = create<AuthState>()(
 
       resendEmailVerification: async (email) => {
         await api.post('/auth/email/resend-verification', { email });
+      },
+
+      forgotPassword: async (email) => {
+        await api.post('/auth/forgot-password', { email });
+      },
+
+      resetPassword: async (token, password) => {
+        await api.post('/auth/reset-password', { token, password });
       },
 
       logout: async () => {
