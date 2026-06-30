@@ -1,4 +1,3 @@
-// src/stores/auth.store.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import Cookies from 'js-cookie';
@@ -11,10 +10,19 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone?: string) => Promise<{ emailVerified: boolean }>;
+  requestPhoneOtp: (phone: string, name?: string) => Promise<{ isNewUser: boolean }>;
+  verifyPhoneOtp: (phone: string, otp: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendEmailVerification: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
-  checkAuth: () => Promise<void>; // ← tambah ke interface
+  checkAuth: () => Promise<void>;
+}
+
+function setTokens(accessToken: string, refreshToken: string) {
+  Cookies.set('accessToken', accessToken, { expires: 1 / 96 });
+  Cookies.set('refreshToken', refreshToken, { expires: 7 });
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,8 +37,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { data } = await api.post('/auth/login', { email, password });
           const { user, accessToken, refreshToken } = data.data;
-          Cookies.set('accessToken', accessToken, { expires: 1 / 96 });
-          Cookies.set('refreshToken', refreshToken, { expires: 7 });
+          setTokens(accessToken, refreshToken);
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (error) {
           set({ isLoading: false });
@@ -41,17 +48,57 @@ export const useAuthStore = create<AuthState>()(
       register: async (name, email, password, phone) => {
         set({ isLoading: true });
         try {
-          const { data } = await api.post('/auth/register', {
-            name, email, password, phone,
-          });
+          const { data } = await api.post('/auth/register', { name, email, password, phone });
           const { user, accessToken, refreshToken } = data.data;
-          Cookies.set('accessToken', accessToken, { expires: 1 / 96 });
-          Cookies.set('refreshToken', refreshToken, { expires: 7 });
+          setTokens(accessToken, refreshToken);
+          set({ user, isAuthenticated: true, isLoading: false });
+          return { emailVerified: user.emailVerified };
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      requestPhoneOtp: async (phone, name) => {
+        set({ isLoading: true });
+        try {
+          const { data } = await api.post('/auth/phone/request-otp', { phone, name });
+          set({ isLoading: false });
+          return { isNewUser: data.data.isNewUser };
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      verifyPhoneOtp: async (phone, otp) => {
+        set({ isLoading: true });
+        try {
+          const { data } = await api.post('/auth/phone/verify-otp', { phone, otp });
+          const { user, accessToken, refreshToken } = data.data;
+          setTokens(accessToken, refreshToken);
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (error) {
           set({ isLoading: false });
           throw error;
         }
+      },
+
+      verifyEmail: async (email, code) => {
+        set({ isLoading: true });
+        try {
+          const { data } = await api.post('/auth/email/verify', { email, code });
+          const { user, accessToken, refreshToken } = data.data;
+          setTokens(accessToken, refreshToken);
+          set({ user, isAuthenticated: true, isLoading: false });
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      resendEmailVerification: async (email) => {
+        await api.post('/auth/email/resend-verification', { email });
       },
 
       logout: async () => {
@@ -66,18 +113,15 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user, isAuthenticated: true }),
 
-      // ← implementasi checkAuth
       checkAuth: async () => {
         const token = Cookies.get('accessToken');
         const refreshToken = Cookies.get('refreshToken');
 
-        // Kedua cookie habis — reset state
         if (!token && !refreshToken) {
           set({ user: null, isAuthenticated: false });
           return;
         }
 
-        // Access token habis tapi refresh masih ada
         if (!token && refreshToken) {
           try {
             const { data } = await axios.post(
@@ -85,11 +129,8 @@ export const useAuthStore = create<AuthState>()(
               {},
               { headers: { Authorization: `Bearer ${refreshToken}` } },
             );
-            const { accessToken: newAccess, refreshToken: newRefresh } = data.data;
-            Cookies.set('accessToken', newAccess, { expires: 1 / 96 });
-            Cookies.set('refreshToken', newRefresh, { expires: 7 });
+            setTokens(data.data.accessToken, data.data.refreshToken);
           } catch {
-            // Refresh token juga expired
             Cookies.remove('accessToken');
             Cookies.remove('refreshToken');
             set({ user: null, isAuthenticated: false });
@@ -99,10 +140,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-      }),
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     },
   ),
 );
