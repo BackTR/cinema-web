@@ -7,8 +7,11 @@ import toast from 'react-hot-toast';
 import { Film, Ticket, LogOut, User, LayoutDashboard } from 'lucide-react';
 
 export function Navbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
+
 
   const handleLogout = async () => {
     await logout();
