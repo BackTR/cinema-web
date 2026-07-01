@@ -3,72 +3,118 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth.store';
-import toast from 'react-hot-toast';
-import { Film, Eye, EyeOff, Phone, Mail } from 'lucide-react';
+import { showToast } from '@/lib/toast';
+import { FormField, Input, PasswordInput } from '@/components/ui/FormField';
+import { Film, Phone, Mail, CheckCircle2 } from 'lucide-react';
 
 type Tab = 'email' | 'phone';
 
+const emailSchema = z.object({
+  name: z.string().min(2, 'Nama minimal 2 karakter').max(100, 'Nama terlalu panjang'),
+  email: z.string().email('Format email tidak valid'),
+  phone: z
+    .string()
+    .regex(/^(\+62|62|0)8[0-9]{8,11}$/, 'Format nomor HP tidak valid')
+    .optional()
+    .or(z.literal('')),
+  password: z
+    .string()
+    .min(8, 'Password minimal 8 karakter')
+    .regex(/[A-Z]/, 'Harus ada huruf kapital')
+    .regex(/[0-9]/, 'Harus ada angka'),
+});
+
+const phoneSchema = z.object({
+  name: z.string().min(2, 'Nama minimal 2 karakter').max(100),
+  phone: z
+    .string()
+    .min(1, 'Nomor HP wajib diisi')
+    .regex(/^(\+62|62|0)8[0-9]{8,11}$/, 'Format nomor HP tidak valid'),
+});
+
+type EmailForm = z.infer<typeof emailSchema>;
+type PhoneForm = z.infer<typeof phoneSchema>;
+
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, requestPhoneOtp, isLoading } = useAuthStore();
+  const register = useAuthStore((s) => s.register);
+  const requestPhoneOtp = useAuthStore((s) => s.requestPhoneOtp);
+  const isLoading = useAuthStore((s) => s.isLoading);
   const [tab, setTab] = useState<Tab>('email');
-  const [showPassword, setShowPassword] = useState(false);
 
-  const [emailForm, setEmailForm] = useState({
-    name: '', email: '', phone: '', password: '',
+  const emailForm = useForm<EmailForm>({
+    resolver: zodResolver(emailSchema),
+    mode: 'onBlur',
   });
 
-  const [phoneForm, setPhoneForm] = useState({ name: '', phone: '' });
+  const phoneForm = useForm<PhoneForm>({
+    resolver: zodResolver(phoneSchema),
+    mode: 'onBlur',
+  });
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmailForm({ ...emailForm, [e.target.name]: e.target.value });
+  const password = emailForm.watch('password', '');
+  const passwordChecks = {
+    minLength: password.length >= 8,
+    hasUpperCase: /[A-Z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (emailForm.password.length < 8) {
-      toast.error('Password minimal 8 karakter');
-      return;
-    }
+  const handleEmailSubmit = async (data: EmailForm) => {
     try {
-      const result = await register(
-        emailForm.name, emailForm.email, emailForm.password, emailForm.phone,
-      );
+      const result = await register(data.name, data.email, data.password, data.phone || undefined);
       if (!result.emailVerified) {
-        toast.success('Registrasi berhasil! Cek email untuk kode verifikasi.');
-        router.push(`/auth/verify-email?email=${encodeURIComponent(emailForm.email)}`);
+        showToast.info('Cek email kamu untuk kode verifikasi!');
+        router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
-        toast.success('Registrasi berhasil!');
+        showToast.success('Registrasi berhasil!');
         router.push('/movies');
       }
     } catch (error: unknown) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
       const msg = (error as { response?: { data?: { message?: string } } })
         ?.response?.data?.message;
-      toast.error(msg ?? 'Registrasi gagal. Email mungkin sudah digunakan.');
+
+      if (status === 409) {
+        showToast.error('Email ini sudah terdaftar. Coba login.', 'Email Sudah Dipakai');
+        emailForm.setError('email', { message: 'Email sudah terdaftar' });
+      } else {
+        showToast.error(msg ?? 'Registrasi gagal. Coba lagi.', 'Error');
+      }
     }
   };
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePhoneSubmit = async (data: PhoneForm) => {
     try {
-      await requestPhoneOtp(phoneForm.phone, phoneForm.name);
-      toast.success('Kode OTP telah dikirim via WhatsApp');
-      router.push(`/auth/verify-phone?phone=${encodeURIComponent(phoneForm.phone)}`);
+      await requestPhoneOtp(data.phone, data.name);
+      showToast.success('Kode OTP dikirim via WhatsApp!');
+      router.push(`/auth/verify-phone?phone=${encodeURIComponent(data.phone)}`);
     } catch (error: unknown) {
       const msg = (error as { response?: { data?: { message?: string } } })
         ?.response?.data?.message;
-      toast.error(msg ?? 'Gagal mengirim OTP');
-    }
-  };
 
-  const handleGoogleLogin = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+      if (msg?.includes('Tunggu')) {
+        showToast.warning(msg);
+      } else if (msg?.includes('Nama wajib')) {
+        phoneForm.setError('name', { message: 'Nama wajib diisi' });
+      } else {
+        showToast.error(msg ?? 'Gagal mengirim OTP.', 'Error');
+      }
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="w-full max-w-md"
+      >
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold text-white">
             <Film className="w-8 h-8 text-red-500" />
@@ -78,133 +124,176 @@ export default function RegisterPage() {
         </div>
 
         <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8">
-
           {/* Tabs */}
           <div className="flex gap-2 mb-6 bg-gray-800 rounded-xl p-1">
-            <button
-              onClick={() => setTab('email')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                tab === 'email' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Mail className="w-4 h-4" />
-              Email
-            </button>
-            <button
-              onClick={() => setTab('phone')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                tab === 'phone' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Phone className="w-4 h-4" />
-              No. HP
-            </button>
+            {(['email', 'phone'] as Tab[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  tab === t ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {t === 'email' ? <Mail className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                {t === 'email' ? 'Email' : 'No. HP'}
+              </button>
+            ))}
           </div>
 
-          {/* Email Tab */}
-          {tab === 'email' && (
-            <form onSubmit={handleEmailSubmit} className="space-y-5">
-              <div>
-                <label className="label">Nama Lengkap</label>
-                <input
-                  name="name" type="text" className="input"
-                  placeholder="John Doe"
-                  value={emailForm.name} onChange={handleEmailChange} required
-                />
-              </div>
-              <div>
-                <label className="label">Email</label>
-                <input
-                  name="email" type="email" className="input"
-                  placeholder="kamu@email.com"
-                  value={emailForm.email} onChange={handleEmailChange} required
-                />
-              </div>
-              <div>
-                <label className="label">
-                  Nomor HP <span className="text-gray-500 font-normal">(opsional)</span>
-                </label>
-                <input
-                  name="phone" type="tel" className="input"
-                  placeholder="081234567890"
-                  value={emailForm.phone} onChange={handleEmailChange}
-                />
-              </div>
-              <div>
-                <label className="label">Password</label>
-                <div className="relative">
-                  <input
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="input pr-12"
-                    placeholder="Min. 8 karakter"
-                    value={emailForm.password}
-                    onChange={handleEmailChange}
-                    required
+          <AnimatePresence mode="wait">
+            {tab === 'email' ? (
+              <motion.form
+                key="email"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={emailForm.handleSubmit(handleEmailSubmit)}
+                className="space-y-4"
+              >
+                <FormField
+                  label="Nama Lengkap" required
+                  error={emailForm.formState.errors.name?.message}
+                >
+                  <Input
+                    type="text" placeholder="John Doe"
+                    error={!!emailForm.formState.errors.name}
+                    success={!emailForm.formState.errors.name && !!emailForm.watch('name')}
+                    {...emailForm.register('name')}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                <p className="text-gray-500 text-xs mt-1">
-                  Min. 8 karakter, harus ada huruf kapital dan angka
-                </p>
-              </div>
+                </FormField>
 
-              <button type="submit" disabled={isLoading} className="btn-primary w-full">
-                {isLoading ? 'Memproses...' : 'Daftar Sekarang'}
-              </button>
-            </form>
-          )}
+                <FormField
+                  label="Email" required
+                  error={emailForm.formState.errors.email?.message}
+                >
+                  <Input
+                    type="email" placeholder="kamu@email.com"
+                    error={!!emailForm.formState.errors.email}
+                    success={!emailForm.formState.errors.email && !!emailForm.watch('email')}
+                    {...emailForm.register('email')}
+                  />
+                </FormField>
 
-          {/* Phone Tab */}
-          {tab === 'phone' && (
-            <form onSubmit={handlePhoneSubmit} className="space-y-5">
-              <div>
-                <label className="label">Nama Lengkap</label>
-                <input
-                  type="text" className="input"
-                  placeholder="John Doe"
-                  value={phoneForm.name}
-                  onChange={(e) => setPhoneForm({ ...phoneForm, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="label">Nomor HP</label>
-                <input
-                  type="tel" className="input"
-                  placeholder="081234567890"
-                  value={phoneForm.phone}
-                  onChange={(e) => setPhoneForm({ ...phoneForm, phone: e.target.value })}
-                  required
-                />
-                <p className="text-gray-500 text-xs mt-1">
-                  Kami akan kirim kode OTP via WhatsApp untuk verifikasi
-                </p>
-              </div>
+                <FormField
+                  label="Nomor HP"
+                  error={emailForm.formState.errors.phone?.message}
+                  hint="Opsional — untuk login via WhatsApp"
+                >
+                  <Input
+                    type="tel" placeholder="081234567890"
+                    error={!!emailForm.formState.errors.phone}
+                    {...emailForm.register('phone')}
+                  />
+                </FormField>
 
-              <button type="submit" disabled={isLoading} className="btn-primary w-full">
-                {isLoading ? 'Mengirim...' : 'Kirim Kode OTP'}
-              </button>
-            </form>
-          )}
+                <FormField
+                  label="Password" required
+                  error={emailForm.formState.errors.password?.message}
+                >
+                  <PasswordInput
+                    placeholder="Min. 8 karakter"
+                    error={!!emailForm.formState.errors.password}
+                    {...emailForm.register('password')}
+                  />
+                  {/* Password strength checklist */}
+                  {password.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-2 space-y-1"
+                    >
+                      {[
+                        { check: passwordChecks.minLength, label: 'Minimal 8 karakter' },
+                        { check: passwordChecks.hasUpperCase, label: 'Ada huruf kapital' },
+                        { check: passwordChecks.hasNumber, label: 'Ada angka' },
+                      ].map((item) => (
+                        <div key={item.label} className="flex items-center gap-1.5 text-xs">
+                          <CheckCircle2
+                            className={`w-3.5 h-3.5 transition-colors ${
+                              item.check ? 'text-green-400' : 'text-gray-600'
+                            }`}
+                          />
+                          <span className={item.check ? 'text-green-400' : 'text-gray-500'}>
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </FormField>
 
-          {/* Divider */}
+                <motion.button
+                  type="submit"
+                  disabled={isLoading}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="btn-primary w-full mt-2"
+                >
+                  {isLoading ? 'Memproses...' : 'Daftar Sekarang'}
+                </motion.button>
+              </motion.form>
+            ) : (
+              <motion.form
+                key="phone"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={phoneForm.handleSubmit(handlePhoneSubmit)}
+                className="space-y-5"
+              >
+                <FormField
+                  label="Nama Lengkap" required
+                  error={phoneForm.formState.errors.name?.message}
+                >
+                  <Input
+                    type="text" placeholder="John Doe"
+                    error={!!phoneForm.formState.errors.name}
+                    success={!phoneForm.formState.errors.name && !!phoneForm.watch('name')}
+                    {...phoneForm.register('name')}
+                  />
+                </FormField>
+
+                <FormField
+                  label="Nomor HP" required
+                  error={phoneForm.formState.errors.phone?.message}
+                  hint="Kode OTP akan dikirim via WhatsApp"
+                >
+                  <Input
+                    type="tel" placeholder="081234567890"
+                    error={!!phoneForm.formState.errors.phone}
+                    success={!phoneForm.formState.errors.phone && !!phoneForm.watch('phone')}
+                    {...phoneForm.register('phone')}
+                  />
+                </FormField>
+
+                <motion.button
+                  type="submit"
+                  disabled={isLoading}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="btn-primary w-full"
+                >
+                  {isLoading ? 'Mengirim...' : 'Kirim Kode OTP'}
+                </motion.button>
+              </motion.form>
+            )}
+          </AnimatePresence>
+
+          {/* Divider + OAuth */}
           <div className="flex items-center gap-3 my-6">
             <div className="flex-1 h-px bg-gray-800" />
             <span className="text-gray-500 text-xs">atau</span>
             <div className="flex-1 h-px bg-gray-800" />
           </div>
 
-          {/* OAuth */}
-          <button
-            onClick={handleGoogleLogin}
+          <motion.button
             type="button"
+            onClick={() => { window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`; }}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
             className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-900 px-4 py-3 rounded-lg font-medium transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -214,7 +303,7 @@ export default function RegisterPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             Daftar dengan Google
-          </button>
+          </motion.button>
 
           <p className="text-center text-gray-400 mt-6 text-sm">
             Sudah punya akun?{' '}
@@ -223,7 +312,7 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
