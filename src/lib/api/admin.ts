@@ -112,4 +112,20 @@ export const adminApi = {
     const { data } = await api.get(`/admin/tickets/validate/${ticketCode}`);
     return data.data;
   },
+
+// Seats
+  getSeats: async (studioId: string) => {
+    const { data } = await api.get(`/admin/studios/${studioId}/seats`);
+    return data.data;
+  },
+
+  createSeats: async (dto: {
+    studioId: string;
+    rows: string[];
+    seatsPerRow: number;
+    vipRows?: string[];
+  }) => {
+    const { data } = await api.post('/admin/seats', dto);
+    return data.data as { message: string; totalSeats: number };
+  },
 };

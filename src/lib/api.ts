@@ -19,6 +19,10 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+      if (originalRequest.url?.includes('/auth/refresh')) {
+        return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -41,7 +45,10 @@ api.interceptors.response.use(
       } catch {
         Cookies.remove('accessToken');
         Cookies.remove('refreshToken');
-        window.location.href = '/auth/login';
+          if (typeof window !== 'undefined' &&
+            !window.location.pathname.startsWith('/auth')) {
+          window.location.href = '/auth/login';
+  }
       }
     }
 
