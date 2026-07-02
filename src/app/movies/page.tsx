@@ -6,6 +6,7 @@ import { moviesApi } from '@/lib/api/movies';
 import { MovieCard } from '@/components/movie/MovieCard';
 import { Movie } from '@/types';
 import { Search } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const RATINGS = ['SU', '13+', '17+', '21+'];
 const GENRES = ['Action', 'Drama', 'Comedy', 'Horror', 'Romance', 'Sci-Fi', 'Animation'];
@@ -94,11 +95,27 @@ export default function MoviesPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <motion.div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: {},
+              show: { transition: { staggerChildren: 0.05 } },
+            }}
+          >
             {movies.map((movie) => (
-              <MovieCard key={movie.id} movie={movie} />
+              <motion.div
+                key={movie.id}
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  show: { opacity: 1, y: 0 },
+                }}
+                transition={{ duration: 0.3 }}
+              >
+                <MovieCard movie={movie} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
 
           {meta && meta.totalPages > 1 && (
             <div className="flex justify-center items-center gap-3 mt-10">

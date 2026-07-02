@@ -73,4 +73,11 @@ export const moviesApi = {
       studios: Array<{ id: string; name: string; type: string }>;
     }>;
   },
+
+    getAvailableDates: async (movieId: string, startDate: string, endDate: string) => {
+    const { data } = await api.get('/schedules/available-dates', {
+      params: { movieId, startDate, endDate },
+    });
+    return data.data as { dates: string[] };
+  },
 };
