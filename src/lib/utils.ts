@@ -14,15 +14,14 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat('id-ID', {
+  return new Date(date).toLocaleString('id-ID', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'Asia/Jakarta',
-  }).format(new Date(date));
+  });
 }
 
 export function formatDateShort(date: string | Date): string {

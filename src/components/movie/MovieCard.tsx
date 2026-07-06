@@ -1,8 +1,7 @@
-// src/components/movie/MovieCard.tsx
 import Image from 'next/image';
 import Link from 'next/link';
 import { Movie } from '@/types';
-import { Clock } from 'lucide-react';
+import { Clock, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface MovieCardProps {
@@ -56,6 +55,13 @@ export function MovieCard({ movie }: MovieCardProps) {
           <div className="flex items-center gap-1 text-gray-500 text-xs">
             <Clock className="w-3 h-3" />
             {movie.durationMinutes} menit
+            {movie.averageRating && movie.averageRating > 0 && (
+            <span className="flex items-center gap-1">
+              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+              <span className="text-yellow-400">{movie.averageRating}</span>
+              <span className="text-gray-600">({movie.totalReviews})</span>
+            </span>
+          )}
           </div>
         </div>
       </motion.div>

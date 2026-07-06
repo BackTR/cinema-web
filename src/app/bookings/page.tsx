@@ -1,3 +1,4 @@
+// src/app/bookings/page.tsx
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
@@ -8,7 +9,10 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Booking } from '@/types';
-import { Ticket, ChevronRight, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import {
+  Ticket, ChevronRight, Clock,
+  CheckCircle, XCircle, AlertCircle,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const STATUS_CONFIG = {
@@ -46,15 +50,30 @@ export default function BookingsPage() {
     if (!isAuthenticated) router.push('/auth/login');
   }, [isAuthenticated, router]);
 
-  const { data, isLoading } = useQuery({
+  const { data: rawData, isLoading, error } = useQuery({
     queryKey: ['myBookings'],
-    queryFn: () => bookingsApi.getMyBookings,
+    queryFn:  () => bookingsApi.getMyBookings(),
     enabled: isAuthenticated,
   });
 
-  const bookings: Booking[] = Array.isArray(data)
-    ? data
-    : (data as { data?: Booking[] })?.data ?? [];
+  // Handle semua kemungkinan struktur response
+  const bookings: Booking[] = (() => {
+    if (!rawData) return [];
+    // Case 1: array langsung
+    if (Array.isArray(rawData)) return rawData;
+    // Case 2: { data: [], meta: {} }
+    if (Array.isArray((rawData as { data?: Booking[] }).data)) {
+      return (rawData as { data: Booking[] }).data;
+    }
+    // Case 3: nested { data: { data: [], meta: {} } }
+    const nested = (rawData as { data?: { data?: Booking[] } }).data;
+    if (nested && Array.isArray(nested.data)) return nested.data;
+    return [];
+  })();
+
+  if (error) {
+    console.error('Bookings error:', error);
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -84,7 +103,10 @@ export default function BookingsPage() {
           className="text-center py-20"
         >
           <Ticket className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-          <p className="text-gray-400 mb-4">Belum ada booking.</p>
+          <p className="text-gray-400 mb-2">Belum ada booking.</p>
+          <p className="text-gray-600 text-sm mb-6">
+            Yuk beli tiket film favoritmu!
+          </p>
           <Link href="/movies">
             <motion.span
               whileHover={{ scale: 1.03 }}
@@ -106,7 +128,7 @@ export default function BookingsPage() {
           }}
         >
           {bookings.map((booking) => {
-            const status = STATUS_CONFIG[booking.status];
+            const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.EXPIRED;
             const StatusIcon = status.icon;
 
             return (
@@ -130,8 +152,12 @@ export default function BookingsPage() {
                           {booking.schedule?.movie?.title ?? 'Film'}
                         </h3>
                         <p className="text-gray-400 text-sm mb-2 truncate">
-                          {booking.schedule?.studio?.cinema?.name} •{' '}
-                          {formatDate(booking.schedule?.showTime)}
+                          {booking.schedule?.studio?.cinema?.name
+                            ? `${booking.schedule.studio.cinema.name} • `
+                            : ''}
+                          {booking.schedule?.showTime
+                            ? formatDate(booking.schedule.showTime)
+                            : '-'}
                         </p>
 
                         {/* Status badge */}
@@ -148,7 +174,10 @@ export default function BookingsPage() {
                         <p className="text-gray-500 text-xs mt-1 font-mono">
                           {booking.bookingCode}
                         </p>
-                        <ChevronRight className="w-4 h-4 text-gray-600 ml-auto mt-2" />
+                        <p className="text-gray-600 text-xs mt-1">
+                          {booking.seats?.length ?? 0} kursi
+                        </p>
+                        <ChevronRight className="w-4 h-4 text-gray-600 ml-auto mt-1" />
                       </div>
                     </div>
                   </motion.div>

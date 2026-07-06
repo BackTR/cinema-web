@@ -25,6 +25,8 @@ export interface Movie {
   cast?: string;
   releaseDate: string;
   isActive: boolean;
+  averageRating?: number;
+  totalReviews?: number;
 }
 
 export interface Cinema {
@@ -134,4 +136,46 @@ export interface ApiResponse<T> {
     limit: number;
     totalPages: number;
   };
+}
+
+export interface BookingStats {
+  total: number;
+  confirmed: number;
+  pending: number;
+  cancelled: number;
+  totalSpent: number;
+}
+
+export interface Review {
+  id: string;
+  userId: string;
+  movieId: string;
+  bookingId: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  user: { name: string; avatarUrl?: string | null };
+}
+
+export interface ReviewStats {
+  average: number;
+  total: number;
+  distribution: { star: number; count: number }[];
+}
+
+export interface ReviewsResponse {
+  data: Review[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+  stats: ReviewStats;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  createdAt: string;
 }

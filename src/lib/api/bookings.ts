@@ -11,9 +11,8 @@ export const bookingsApi = {
   },
 
   getMyBookings: async (page = 1, limit = 10) => {
-    const { data } = await api.get<ApiResponse<PaginatedResponse<Booking>>>('/bookings', {
-      params: { page, limit },
-    });
+    const { data } = await api.get('/bookings', { params: { page, limit } });
+    console.log('Raw bookings response:', JSON.stringify(data, null, 2)); // debug
     return data.data;
   },
 

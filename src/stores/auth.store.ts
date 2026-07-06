@@ -20,6 +20,8 @@ interface AuthState {
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   checkAuth: () => Promise<void>;
+  updateProfile: (dto: { name?: string; phone?: string }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 function setTokens(accessToken: string, refreshToken: string) {
@@ -114,11 +116,24 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         try {
           await api.post('/auth/logout');
+        } catch (error) {
+          console.error('Logout API error:', error);
         } finally {
           Cookies.remove('accessToken');
           Cookies.remove('refreshToken');
           set({ user: null, isAuthenticated: false });
         }
+      },
+
+      updateProfile: async (dto) => {
+        const { data } = await api.patch('/auth/me', dto);
+        set((state) => ({
+          user: state.user ? { ...state.user, ...data.data } : null,
+        }));
+      },
+
+      changePassword: async (currentPassword, newPassword) => {
+        await api.patch('/auth/me/change-password', { currentPassword, newPassword });
       },
 
       setUser: (user) => set({ user, isAuthenticated: true }),
