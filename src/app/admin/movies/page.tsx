@@ -8,10 +8,14 @@ import { Movie } from '@/types';
 import { formatDateShort } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { profileApi } from '@/lib/api/profile';
+import { useState as useStateUpload } from 'react';
+import { Upload, Loader2 } from 'lucide-react';
 
 export default function AdminMoviesPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [isUploadingPoster, setIsUploadingPoster] = useState(false);
   const [editMovie, setEditMovie] = useState<Movie | null>(null);
   const [form, setForm] = useState({
     title: '',
@@ -75,6 +79,23 @@ export default function AdminMoviesPage() {
     if (!confirm(`Hapus film "${movie.title}"?`)) return;
     deleteMutation.mutate(movie.id);
   };
+
+  const handlePosterUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPoster(true);
+    try {
+      const { url } = await profileApi.uploadPoster(file);
+      setForm({ ...form, posterUrl: url });
+      toast.success('Poster berhasil diupload!');
+    } catch {
+      toast.error('Gagal mengupload poster');
+    } finally {
+      setIsUploadingPoster(false);
+    }
+  };
+
 
   return (
     <div>
@@ -177,15 +198,49 @@ export default function AdminMoviesPage() {
                     onChange={(e) => setForm({ ...form, cast: e.target.value })}
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="label">URL Poster</label>
-                  <input
-                    className="input"
-                    value={form.posterUrl}
-                    onChange={(e) => setForm({ ...form, posterUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
+                  <div className="col-span-2">
+                    <label className="label">Poster Film</label>
+
+                    {/* Preview */}
+                    {form.posterUrl && (
+                      <div className="relative w-24 h-36 mb-3 rounded-lg overflow-hidden border border-gray-700">
+                        <img src={form.posterUrl} alt="Poster" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+
+                    {/* Upload button */}
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-sm">
+                        {isUploadingPoster ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Mengupload...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            Upload Poster
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handlePosterUpload}
+                          disabled={isUploadingPoster}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {/* atau input URL manual */}
+                      <input
+                        className="input flex-1 text-sm"
+                        value={form.posterUrl}
+                        onChange={(e) => setForm({ ...form, posterUrl: e.target.value })}
+                        placeholder="atau paste URL poster..."
+                      />
+                    </div>
+                    <p className="text-gray-600 text-xs mt-1">JPG, PNG, WebP • Maks 5MB</p>
+                  </div>
               </div>
 
               <div className="flex gap-3 pt-2">

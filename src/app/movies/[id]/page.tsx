@@ -16,6 +16,7 @@ import { useLocationStore } from '@/stores/location.store';
 import { CinemaPicker } from '@/components/movie/CinemaPicker';
 import { showToast } from '@/lib/toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ReviewList } from '@/components/movie/ReviewList';
 
 export default function MovieDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,11 @@ export default function MovieDetailPage() {
   const [showCinemaPicker, setShowCinemaPicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
 
+  // Helper to format date as YYYY-MM-DD in Asia/Jakarta timezone
+  const getLocalDateString = (d: Date) => {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d);
+  };
+
   // Generate 7 hari ke depan
   const dates = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -38,8 +44,8 @@ export default function MovieDetailPage() {
       return d;
     }), []);
 
-  const startDate = dates[0].toISOString().split('T')[0];
-  const endDate = dates[6].toISOString().split('T')[0];
+  const startDate = getLocalDateString(dates[0]);
+  const endDate = getLocalDateString(dates[6]);
 
   const { data: movie, isLoading: loadingMovie } = useQuery({
     queryKey: ['movie', id],
@@ -318,9 +324,9 @@ export default function MovieDetailPage() {
               {/* Date Picker — dengan visual availability */}
               <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
                 {dates.map((date) => {
-                  const dateStr = date.toISOString().split('T')[0];
+                  const dateStr = getLocalDateString(date);
                   const isSelected = dateStr === selectedDate;
-                  const isToday = dateStr === new Date().toISOString().split('T')[0];
+                  const isToday = dateStr === getLocalDateString(new Date());
                   const hasSchedule = availableDates.includes(dateStr);
                   const isLoadingAvailability = availableDates.length === 0;
 
@@ -469,6 +475,7 @@ export default function MovieDetailPage() {
                                     {new Date(schedule.showTime).toLocaleTimeString('id-ID', {
                                       hour: '2-digit',
                                       minute: '2-digit',
+                                      timeZone: 'Asia/Jakarta',
                                     })}
                                   </span>
                                   {schedule.format && schedule.format !== 'TWO_D' && (
@@ -511,6 +518,16 @@ export default function MovieDetailPage() {
           <p className="text-gray-300 leading-relaxed">{movie.synopsis}</p>
         </motion.div>
       </div>
+      {/* Reviews Section */}
+<div className="max-w-6xl mx-auto px-6 pb-12">
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true }}
+  >
+    <ReviewList movieId={id} />
+  </motion.div>
+</div>
 
       {/* Cinema Picker Modal */}
       <AnimatePresence>

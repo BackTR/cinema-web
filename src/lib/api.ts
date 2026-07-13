@@ -45,10 +45,12 @@ api.interceptors.response.use(
       } catch {
         Cookies.remove('accessToken');
         Cookies.remove('refreshToken');
-          if (typeof window !== 'undefined' &&
-            !window.location.pathname.startsWith('/auth')) {
-          window.location.href = '/auth/login';
-  }
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth-storage');
+          if (!window.location.pathname.startsWith('/auth')) {
+            window.location.href = '/auth/login';
+          }
+        }
       }
     }
 

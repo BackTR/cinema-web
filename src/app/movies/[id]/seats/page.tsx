@@ -102,10 +102,10 @@ function SeatPickerContent() {
 
   const getSeatStyle = (seat: SeatInfo, isSelected: boolean) => {
     if (isSelected) return 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/30';
-    if (seat.status === 'BOOKED') return 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed';
-    if (seat.status === 'LOCKED') return 'bg-yellow-900/40 border-yellow-700/50 text-yellow-600/70 cursor-not-allowed';
-    if (seat.type === 'VIP') return 'bg-purple-900/40 border-purple-700/60 text-purple-300 hover:bg-purple-800/60 cursor-pointer';
-    return 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-gray-400 cursor-pointer';
+    if (seat.status === 'BOOKED') return 'bg-gray-700 border-gray-600 text-gray-400 cursor-not-allowed';
+    if (seat.status === 'LOCKED') return 'bg-yellow-900/40 border-yellow-700/50 text-yellow-300 cursor-not-allowed';
+    if (seat.type === 'VIP') return 'bg-purple-900/40 border-purple-700/60 text-purple-100 hover:bg-purple-800/60 hover:text-white cursor-pointer';
+    return 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700 hover:text-white hover:border-gray-400 cursor-pointer';
   };
 
   return (
@@ -159,87 +159,92 @@ function SeatPickerContent() {
         ))}
       </motion.div>
 
-      {/* Screen */}
-      <motion.div
-        initial={{ opacity: 0, scaleX: 0.8 }}
-        animate={{ opacity: 1, scaleX: 1 }}
-        transition={{ delay: 0.15 }}
-        className="text-center mb-8"
-      >
-        <div className="inline-block bg-gradient-to-b from-gray-500 to-gray-700 text-gray-300 text-xs px-20 py-1.5 rounded-sm mb-1 shadow-lg shadow-gray-700/50">
-          LAYAR
-        </div>
-        <div className="h-1.5 bg-gradient-to-b from-gray-600/50 to-transparent rounded-full mx-auto w-3/4" />
-      </motion.div>
-
-      {/* Seat Map */}
-      {isLoading ? (
-        <div className="space-y-3 mb-8">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-gray-800 rounded animate-pulse" />
-              <div className="flex gap-1.5">
-                {Array.from({ length: 10 }).map((_, j) => (
-                  <div key={j} className="w-8 h-8 bg-gray-800 rounded animate-pulse" />
-                ))}
-              </div>
+      {/* Interactive Seat Map Area */}
+      <div className="w-full overflow-x-auto pb-6 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+        <div className="min-w-max px-4 flex flex-col items-center mx-auto">
+          {/* Screen */}
+          <motion.div
+            initial={{ opacity: 0, scaleX: 0.8 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ delay: 0.15 }}
+            className="text-center mb-8 w-full"
+          >
+            <div className="inline-block bg-gradient-to-b from-gray-500 to-gray-700 text-gray-200 text-xs px-20 py-1.5 rounded-sm mb-1 shadow-lg shadow-gray-700/50 font-bold tracking-wider">
+              LAYAR
             </div>
-          ))}
-        </div>
-      ) : (
-        <motion.div
-          className="space-y-2 mb-8"
-          initial="hidden"
-          animate="show"
-          variants={{
-            hidden: {},
-            show: { transition: { staggerChildren: 0.04 } },
-          }}
-        >
-          {seatMap && Object.entries(seatMap.rows).map(([row, seats]) => (
+            <div className="h-1.5 bg-gradient-to-b from-gray-600/50 to-transparent rounded-full mx-auto w-3/4" />
+          </motion.div>
+
+          {/* Seat Map */}
+          {isLoading ? (
+            <div className="space-y-3 mb-8">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-gray-800 rounded animate-pulse" />
+                  <div className="flex gap-1.5">
+                    {Array.from({ length: 10 }).map((_, j) => (
+                      <div key={j} className="w-8 h-8 bg-gray-800 rounded animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
             <motion.div
-              key={row}
+              className="space-y-2 mb-8"
+              initial="hidden"
+              animate="show"
               variants={{
-                hidden: { opacity: 0, x: -10 },
-                show: { opacity: 1, x: 0 },
+                hidden: {},
+                show: { transition: { staggerChildren: 0.04 } },
               }}
-              className="flex items-center gap-2"
             >
-              <span className="text-gray-500 text-sm w-6 text-center font-medium flex-shrink-0">
-                {row}
-              </span>
-              <div className="flex gap-1.5 flex-wrap">
-                {seats.map((seat) => {
-                  const isSelected = selectedSeats.some((s) => s.id === seat.id);
-                  return (
-                    <motion.button
-                      key={seat.id}
-                      onClick={() => toggleSeat(seat)}
-                      disabled={seat.status !== 'AVAILABLE'}
-                      animate={
-                        isSelected
-                          ? { scale: [1, 1.2, 1], rotate: [0, -5, 5, 0] }
-                          : { scale: 1, rotate: 0 }
-                      }
-                      transition={{ duration: 0.3 }}
-                      whileHover={
-                        seat.status === 'AVAILABLE' ? { scale: 1.15 } : {}
-                      }
-                      whileTap={
-                        seat.status === 'AVAILABLE' ? { scale: 0.9 } : {}
-                      }
-                      className={`w-8 h-8 rounded text-xs font-medium border transition-colors ${getSeatStyle(seat, isSelected)}`}
-                      title={`${seat.rowLabel}${seat.seatNumber} — ${seat.type} — ${seat.status}`}
-                    >
-                      {seat.seatNumber}
-                    </motion.button>
-                  );
-                })}
-              </div>
+              {seatMap && Object.entries(seatMap.rows).map(([row, seats]) => (
+                <motion.div
+                  key={row}
+                  variants={{
+                    hidden: { opacity: 0, x: -10 },
+                    show: { opacity: 1, x: 0 },
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <span className="text-gray-400 text-sm w-6 text-center font-bold flex-shrink-0">
+                    {row}
+                  </span>
+                  <div className="flex gap-1.5 flex-nowrap">
+                    {seats.map((seat) => {
+                      const isSelected = selectedSeats.some((s) => s.id === seat.id);
+                      return (
+                        <motion.button
+                          key={seat.id}
+                          onClick={() => toggleSeat(seat)}
+                          disabled={seat.status !== 'AVAILABLE'}
+                          animate={
+                            isSelected
+                              ? { scale: [1, 1.2, 1], rotate: [0, -5, 5, 0] }
+                              : { scale: 1, rotate: 0 }
+                          }
+                          transition={{ duration: 0.3 }}
+                          whileHover={
+                            seat.status === 'AVAILABLE' ? { scale: 1.15 } : {}
+                          }
+                          whileTap={
+                            seat.status === 'AVAILABLE' ? { scale: 0.9 } : {}
+                          }
+                          className={`w-8 h-8 rounded text-xs font-semibold border transition-colors ${getSeatStyle(seat, isSelected)}`}
+                          title={`${seat.rowLabel}${seat.seatNumber} — ${seat.type} — ${seat.status}`}
+                        >
+                          {seat.seatNumber}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              ))}
             </motion.div>
-          ))}
-        </motion.div>
-      )}
+          )}
+        </div>
+      </div>
 
       {/* Summary + Booking CTA */}
       <AnimatePresence>
