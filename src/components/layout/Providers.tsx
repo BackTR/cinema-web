@@ -25,11 +25,18 @@ function AuthInitializer() {
 
       if (!token && refreshToken) {
         try {
-          await axios.post(
+          const { data } = await axios.post(
             `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
             {},
             { headers: { Authorization: `Bearer ${refreshToken}` } },
           );
+          const { accessToken, refreshToken: newRefreshToken } = data.data;
+          Cookies.set('accessToken', accessToken, { expires: 1 / 96 }); // 15 mins
+          Cookies.set('refreshToken', newRefreshToken, { expires: 7 });
+          
+          if (isAuthenticated) {
+            connect();
+          }
         } catch {
           Cookies.remove('accessToken');
           Cookies.remove('refreshToken');
